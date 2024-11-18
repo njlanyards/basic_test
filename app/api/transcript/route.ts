@@ -32,17 +32,27 @@ async function fetchTranscriptWithRetry(videoId: string, retries = 2): Promise<T
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      // Add timeout to the fetch operation
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 8000); // 8 second timeout
-      });
+      // Try different language options if available
+      const options = [
+        { lang: 'en' },
+        { lang: 'en-US' },
+        { lang: 'en-GB' },
+        {} // try without language specification
+      ];
 
-      const transcriptPromise = YoutubeTranscript.fetchTranscript(videoId, {
-        lang: 'en',
-      });
+      for (const option of options) {
+        try {
+          const transcript = await YoutubeTranscript.fetchTranscript(videoId, option);
+          if (transcript && transcript.length > 0) {
+            return transcript;
+          }
+        } catch (innerError) {
+          // Continue to next option if this one fails
+          continue;
+        }
+      }
 
-      const transcript = await Promise.race([transcriptPromise, timeoutPromise]) as TranscriptItem[];
-      return transcript;
+      throw new Error('No transcript available in any language');
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Unknown error');
       
@@ -50,8 +60,11 @@ async function fetchTranscriptWithRetry(videoId: string, retries = 2): Promise<T
         throw lastError;
       }
       
-      // Exponential backoff
-      await new Promise(resolve => setTimeout(resolve, Math.min(1000 * Math.pow(2, attempt), 3000)));
+      // Exponential backoff with jitter
+      const jitter = Math.random() * 1000;
+      await new Promise(resolve => 
+        setTimeout(resolve, Math.min(1000 * Math.pow(2, attempt) + jitter, 5000))
+      );
     }
   }
   
@@ -97,19 +110,21 @@ export async function POST(request: Request) {
       console.error('Transcript error:', transcriptError);
 
       if (transcriptError instanceof Error) {
-        if (transcriptError.message.includes('Request timeout')) {
+        const errorMessage = transcriptError.message.toLowerCase();
+        
+        if (errorMessage.includes('timeout')) {
           return NextResponse.json(
             { error: 'Request timed out. Please try again.' },
             { status: 408 }
           );
         }
-        if (transcriptError.message.includes('Transcript is disabled')) {
+        if (errorMessage.includes('transcript is disabled') || errorMessage.includes('no transcript available')) {
           return NextResponse.json(
-            { error: 'Transcripts are disabled for this video' },
-            { status: 403 }
+            { error: 'No transcript is available for this video' },
+            { status: 404 }
           );
         }
-        if (transcriptError.message.includes('Video is unavailable')) {
+        if (errorMessage.includes('video is unavailable')) {
           return NextResponse.json(
             { error: 'This video is unavailable or private' },
             { status: 404 }
