@@ -8,6 +8,9 @@ const nextConfig = {
   },
   poweredByHeader: false,
   reactStrictMode: true,
+  serverRuntimeConfig: {
+    timeoutMs: 10000,
+  },
 };
 
 export default nextConfig;

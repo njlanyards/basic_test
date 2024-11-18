@@ -23,11 +23,12 @@ export default function Home() {
         },
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch transcript');
+        throw new Error(data.error || 'Failed to fetch transcript');
       }
 
-      const data = await response.json();
       setTranscript(data.transcript);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
