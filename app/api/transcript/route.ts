@@ -16,7 +16,7 @@ function extractVideoId(url: string): string | null {
     }
 
     return null;
-  } catch (error) {
+  } catch (_) {
     return null;
   }
 }
