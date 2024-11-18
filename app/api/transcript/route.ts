@@ -1,6 +1,13 @@
 import { YoutubeTranscript } from 'youtube-transcript';
 import { NextResponse } from 'next/server';
 
+// Define types for the transcript response
+interface TranscriptItem {
+  text: string;
+  duration: number;
+  offset: number;
+}
+
 function extractVideoId(url: string): string | null {
   try {
     const patterns = [
@@ -20,7 +27,7 @@ function extractVideoId(url: string): string | null {
   }
 }
 
-async function fetchTranscriptWithRetry(videoId: string, retries = 3): Promise<any> {
+async function fetchTranscriptWithRetry(videoId: string, retries = 3): Promise<TranscriptItem[]> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
@@ -33,6 +40,7 @@ async function fetchTranscriptWithRetry(videoId: string, retries = 3): Promise<a
       await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
   }
+  throw new Error('Failed to fetch transcript after retries');
 }
 
 export async function POST(request: Request) {
@@ -67,26 +75,28 @@ export async function POST(request: Request) {
 
       // Combine all transcript parts into one text
       const transcript = transcriptItems
-        .map((item: any) => item.text)
+        .map(item => item.text)
         .join('\n');
 
       return NextResponse.json({ transcript });
-    } catch (transcriptError: any) {
+    } catch (transcriptError) {
       console.error('Specific transcript error:', transcriptError);
 
       // Handle specific error cases
-      if (transcriptError.message?.includes('Transcript is disabled')) {
-        return NextResponse.json(
-          { error: 'Transcripts are disabled for this video' },
-          { status: 403 }
-        );
-      }
+      if (transcriptError instanceof Error) {
+        if (transcriptError.message.includes('Transcript is disabled')) {
+          return NextResponse.json(
+            { error: 'Transcripts are disabled for this video' },
+            { status: 403 }
+          );
+        }
 
-      if (transcriptError.message?.includes('Video is unavailable')) {
-        return NextResponse.json(
-          { error: 'This video is unavailable or private' },
-          { status: 404 }
-        );
+        if (transcriptError.message.includes('Video is unavailable')) {
+          return NextResponse.json(
+            { error: 'This video is unavailable or private' },
+            { status: 404 }
+          );
+        }
       }
 
       return NextResponse.json(
