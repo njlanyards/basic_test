@@ -46,7 +46,7 @@ async function fetchTranscriptWithRetry(videoId: string, retries = 2): Promise<T
           if (transcript && transcript.length > 0) {
             return transcript;
           }
-        } catch (innerError) {
+        } catch {
           // Continue to next option if this one fails
           continue;
         }
