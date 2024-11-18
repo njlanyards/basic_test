@@ -71,6 +71,7 @@ async function fetchTranscriptWithRetry(videoId: string, retries = 2): Promise<T
   throw lastError || new Error('Failed to fetch transcript after retries');
 }
 
+export const runtime = 'edge';
 export async function POST(request: Request) {
   try {
     const { videoUrl } = await request.json();
